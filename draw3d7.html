@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8">
+         <title>3D</title>
+         <script id = "vshader" type = "x-shader/x-vertex">
+             attribute vec4 aVertexPosition;
+             attribute vec2 aTextureCoord;
+             uniform mat4 uMoveMatrix;
+             uniform mat4 uPersMatrix;
+
+             varying highp vec2 vTextureCoord;
+             void main(){
+                 gl_Position = uPersMatrix * uMoveMatrix * aVertexPosition;
+                 
+                 vTextureCoord = aTextureCoord;
+             }
+            </script>
+            <script id = "fshader" type = "x-shader/x-fragment">
+                uniform sample2D uSampler;
+                uniform highp float uScale;
+
+                varying highp vec2 vTextureCoord;
+                void main(){
+                    highp float m = 1.0/9.0;
+
+                    lowp vec4 destColor = texture2D(uSampler,vTextureCoord + vec2(0,0) * uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(-1,-1)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(-1,0)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(-1,1)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(0,-1)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(1,0)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(-1,1)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(0,-1)*uScale) * m;
+                    destColor += texture2D(uSampler,vTextureCoord+vec2(1,1)*uScale) * m;
+
+                    gl_FragColor = vec4(destColor.rgb,1.0);
+                }
+            </script>
+            <script src="3dlibs.js"></script>
+            <script>
+             <!--
+                var textureImage = null;
+              function draw(){
+                  let context = document.getElementById("stage");
+                  if(context == null) return;
+
+                  let gl = context.getContext('webgl');
+                  if(gl == null) return;
+                  //カラーバッファ初期化色の指定
+                  //gl.viewport(0,0,gl.canvas.width,gl.canvas.height);
+                  gl.clearColor(0.0,0.0,0.0,1.0);
+                  //ディプスバッファ
+                  gl.clearDepth(1.0);
+                  gl.enable(gl.DEPTH_TEST);
+                  gl.depthFunc(gl.LEQUAL);
+                  //バッファの初期化
+                  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+                  //シェーダ初期化
+                  let shaderProgram = null;
+                  try{
+                      //プログラムシェーダ作成
+                      shaderProgram = createShaderProgram(gl,'vshader','fshader');
+                      //プログラムオブジェクトの選択
+                      gl.useProgram(shaderProgram);
+
+                      //描画命令
+                      let objectInfo = [
+                          //頂点情報       色情報        テクスチャー
+                          -1.0,1.0,0.0,   1.0,1.0,1.0,  0.0,0.0,
+                          -1.0,-1.0,0.0,  1.0,1.0,1.0,  0.0,1.0,
+                          1.0,1.0,0.0,    1.0,1.0,1.0,  1.0,0.0,
+                          1.0,-1.0,0.0,   1.0,1.0,1.0,  1.0,1.0,
+                      ];
+                      let matrix = [
+                          1.0,0.0,0.0,0.0,
+                          0.0,1.0,0.0,0.0,
+                          0.0,0.0,1.0,0.0,
+                          0.0,0.0,-4.0,1.0
+                      ];
+
+                      //テクスチャー画像のバインド
+                      const texture0 = gl.createTexture();
+                      gl.activeTexture(gl.TEXTURE0);
+                      gl.bindTexture(gl.TEXTURE_2D,texture0);
+                      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,textureImage);
+                      //属性設定
+                      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER.gl.LINEAR);
+                      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER.gl.LINEAR_MIPMAP_NEAREST);
+                      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S.gl.CLAMP_TO_EDGE);
+
+                      //複数サイズの画像を生成
+                      gl.generateMipmap(gl.TEXTURE_2D);
+
+                      //canvas領域の幅を取得
+                      size = gl.canvas.clientWidth;
+
+                      //フレームバッファ
+                      let frameBuffer = gl.createFrameBuffer();
+                      gl.bindFrameBuffer(gl.FRAMEBUFFER,frameBuffer);
+
+                      var fTexture = gl.createTexture();
+                      gl.activeTexture(gl.TEXTURE1);
+                      gl.bindTexture(gl.TEXTURE_2D,fTexture);
+                      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,size,size,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+
+                      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+                      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+
+                      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fTexture,0);
+
+                      var depthRenderBuffer = gl.createRenderBuffer();
+                      gl.bindRenderbuffer(gl.RENDERBUFFER,depthRenderBuffer);
+                      gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,size,size);
+
+                      gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTHATTACHMENT,gl.RENDERBUFFER,depthRenderBuffer);
+
+                      //フレームバッファを新たに設定
+                      //1回目を赤に
+                      gl.clearColor(1.0,0.0,0.0,1.0);
+                      //ディプスバッファ
+                      gl.clearDepth(1.0);
+                      gl.enable(gl.DEPTH_TEST);
+                      gl.depthFunc(gl.LEQUAL);
+                      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+                      for(let i = 0; i < 2; i++){
+                          //データの設定
+                      //バッファ領域の作成
+                      const buffer = gl.createBuffer();
+                      //bufferがバインドされる
+                      gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+                      //bindBufferで指定したものに対しデータ設定をする
+                      gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(objectInfo),gl.STATIC_DRAW);
+
+                      //頂点指定
+                      const a_position = gl.getAttribLocation(shaderProgram,'aVertexPosition');
+                      //vertexAttrib*f関数がデフォになっているから
+                      //配列の場合は配列モードを有効化する
+                      gl.enableVertexAttribArray(a_position);
+                      //配列サイズの指定
+                      //4byte(32bit) x 6 = 24
+                      gl.vertexAttribPointer(a_position,3,gl.FLOAT,false,32,0);
+                      
+                      /*//色指定
+                      const a_color = gl.getAttribLocation(shaderProgram,'aColor');
+                      //データの設定
+                      //配列モードの有効化とサイズ指定
+                      gl.enableVertexAttribArray(a_color);
+                      gl.vertexAttribPointer(a_color,3,gl.FLOAT,false,24,12);
+                      //bufferのバインドを解除
+                      gl.bindBuffer(gl.ARRAY_BUFFER,null);*/
+
+                      //テクスチャー指定
+                      const a_textureCoord = gl.getAttribLocation(shaderProgram,'aTextureCoord');
+                      //配列なら配列モードを有効化
+                      gl.enableVertexAttribArray(a_textureCoord);
+                      //4byte(32bit) x 8 = 24
+                      gl.vertexAttribPointer(a_textureCoord,2,gl.FLOAT,false,32,24);
+                      gl.bindBuffer(gl.ARRAY_BUFFER,null);
+
+                      //使用テクスチャーの指定
+                      u_sampler = gl.getUniformLocation(shaderProgram,"uSampler");
+                      //gl.uniform1i(u_sampler,0);
+                      gl.uniform1i(u_sampler,i);
+
+                      //スケール指定
+                      u_scale = gl.getUniformLocation(shaderProgram,"uScale");
+                      gl.uniform1f(u_scale,1.0/textureImage.width);
+
+                      //透視射影行列
+                      const u_persMatrix = gl.getUniformLocation(shaderProgram,'uPersMatrix');
+                      let persMatrix = createPerspectiveMatrix(45 * Math.PI / 180,gl.canvas.clientWidth / gl.canvas.clientHeight,0.1,100);
+                      gl.uniformMatrix4fv(u_persMatrix,false,persMatrix);
+
+                      //colorをuniformで設定
+                      //const u_color = gl.getUniformLocation(shaderProgram,'uColor');
+                      //gl.uniform4fv(u_color,g_m1info[index].color);
+
+                      const u_mmatrix = gl.getUniformLocation(shaderProgram,'uMoveMatrix');
+                      gl.uniformMatrix4fv(u_mmatrix,false,matrix);
+
+                      //描画
+                      gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+
+                      //finishは描画処理が終了してから戻ってくる
+                      gl.finish();
+
+                      //renderbuffer framebufferをデフォルトに
+                      gl.bindRenderbuffer(gl.RENDERBUFFER,null);
+                      gl.bindFrameBuffer(gl.FRAMEBUFFER,null);
+
+                      //再設定
+                      gl.clearColor(0.0,0.0,0.0,1.0);
+                      gl.clearDepth(1.0);
+                      gl.enable(gl.DEPTH_TEST);
+                      gl.depthFunc(gl.LEQUAL);
+                      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+                      }
+                    }catch(e){
+                        console.log(e);
+                    }finally{
+                        //オブジェクト解放
+                        //userProgramが指定されているから削除予約になる
+                        if(shaderProgram != null) gl.deleteProgram(shaderProgram);
+                    }
+                }
+
+                function init(){
+                    //画像が読み込まれたら描画するように
+                    textureImage = new Image();
+                    textureImage.onload = function(){
+                        document.body.appendChild(textureImage);
+                        draw();
+                    }
+                    textureImage.src = "textureimg.png";
+                }
+             window.onload = init;
+             -->
+         </script>
+    </head>
+    <body>
+        <!--
+        <canvas id = "stage" width="640" height="480"></canvas>
+        -->
+        <canvas id = "stage" width="256" height="256"></canvas>
+    </body>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8">
+    <title>3D</title>
+    <script id = "vshader" type = "x-shader/x-vertex">
+        attribute vec4 aVertexPosition;
+        uniform mat4 uMoveMatrix;
+        uniform mat4 uPersMatrix;
+
+        void main(){
+         gl_Position = uPersMatrix * uMoveMatrix * aVertexPosition;
+        }
+    </script>
+    <script id = "fshader" type = "x-shader/x-fragment">
+        void main(){
+            if(gl_FrontFacing == true){
+                gl_FragColor = vec4(1.0,1.0,1.0,1.0);
+            }else{
+                gl_FragColor = vec4(1.0,0.0,0.0,1.0);
+            }
+        }
+    </script>
+    <script src="3dlibs.js"></script>
+    <script>
+        <!--
+            //アングル
+            var g_angle = 0;
+            //テクスチャ
+            var textureImage = null;
+            function draw(){
+              let context = document.getElementById("stage");
+              if(context == null) return;
+
+              let gl = context.getContext('webgl');
+              if(gl == null) return;
+
+              //カラーバッファ初期化色の指定
+              gl.clearColor(0.0,0.0,0.0,1.0);
+
+              //カリング設定
+              gl.frontFace(gl.CCW);
+              //ディプスバッファ
+              gl.clearDepth(1.0);
+              gl.enable(gl.DEPTH_TEST);
+              gl.depthFunc(gl.LEQUAL);
+              //バッファ初期化
+              gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+              //シェーダ初期化
+              let shaderProgram = null;
+              try{
+                  //プログラムシェーダ作成
+                  shaderProgram = createShaderProgram(gl,'vshader','fshader');
+                  //プログラムオブジェクト選択
+                  gl.useProgram(shaderProgram);
+
+                  //描画命令
+                  let objectInfo = [
+                    -1.0, 0.5,0.0,
+                    -1.0,-0.5,0.0,
+                     0.0, 0.5,0.0,
+                     0.0,-0.5,0.0,
+                     1.0, 0.5,0.0,
+                     1.0,-0.5,0.0,
+                  ];
+                  //頂点情報
+                  let cos = Math.cos(g_angle * Math.PI / 180);
+                  let sin = Math.sin(g_angle * Math.PI / 180);
+                  let matrix = [
+                    1.0,0.0,0.0,0.0,
+                    0.0,cos,-sin,0.0,
+                    0.0,sin,cos,0.0,
+                    0.0,0.0,-4.0,1.0
+                  ];
+
+                  //データ設定
+                  //バッファ領域の作成
+                  const buffer = gl.createBuffer();
+                  //データを書き込めるようにbufferをバインド
+                  gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+                  //bindbufferで指定したものに対しデータ設定
+                  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(objectInfo),gl.STATIC_DRAW);
+                  //頂点指定
+                  const a_position = gl.getAttribLocation(shaderProgram,'aVertexPosition');
+                  //配列なら配列モードを有効化
+                  gl.enableVertexAttribArray(a_position);
+                  gl.vertexAttribPointer(a_position,3,gl.FLOAT,false,0,0);
+
+                  //バッファのバインド解除
+                  gl.bindBuffer(gl.ARRAY_BUFFER,null);
+
+                  //透視射影行列
+                  const u_persMatrix = gl.getUniformLocation(shaderProgram,'uPersMatrix');
+                  let persMatrix = createPerspectiveMatrix(45*Math.PI/180,gl.canvas.clientWidth/gl.canvas.clientHeight,0.1,100);
+                  gl.uniformMatrix4fv(u_persMatrix,false,persMatrix);
+
+                  const u_mmatrix = gl.getUniformLocation(shaderProgram,'uMoveMatrix');
+                  gl.uniformMatrix4fv(u_mmatrix,false,matrix);
+                  //描画
+                  gl.drawArrays(gl.TRIANGLE_STRIP,0,6);
+
+                }catch(e){
+                    console.log(e);
+                }finally{
+                    //オブジェクト解放
+                    //useProgram指定されているから削除予約になる
+                    if(shaderProgram != null) gl.deleteProgram(shaderProgram);
+                }
+            }
+            function init(){
+                setInterval(function(){
+                    //回転
+                    g_angle++;
+                    draw();
+                },100);
+            }
+        window.onload = init;    
+        
+        -->
+    </script>
+</head>
+<body>
+    <canvas id="stage" width="640" height="480"></canvas>
+</body>
+</html>
