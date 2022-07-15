@@ -1,0 +1,2 @@
+# draw3d_javascript
+WebGLを使ったシェーダーのテストプログラムです
